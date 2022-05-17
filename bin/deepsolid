@@ -1,0 +1,37 @@
+# Copyright (c) ByteDance, Inc. and its affiliates.
+# All rights reserved.
+#
+# This source code is licensed under the license found in the
+# LICENSE file in the root directory of this source tree.
+
+# modified from FermiNet:https://github.com/deepmind/ferminet
+
+import sys
+import os
+
+from absl import app
+from absl import flags
+from absl import logging
+from jax.config import config as jax_config
+from DeepSolid import process
+from ml_collections.config_flags import config_flags
+
+logging.get_absl_handler().python_handler.stream = sys.stdout
+logging.set_verbosity(logging.INFO)
+
+# internal imports
+
+FLAGS = flags.FLAGS
+
+config_flags.DEFINE_config_file('config', None, 'Path to config file.')
+
+
+def main(_):
+    cfg = FLAGS.config
+    if cfg.use_x64:
+        jax_config.update("jax_enable_x64", True)
+    process.process(cfg)
+
+
+if __name__ == '__main__':
+    app.run(main)
