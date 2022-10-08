@@ -32,7 +32,7 @@ import pyscf.pbc.gto
 def get_supercell_kpts(supercell):
     """
 
-    :param supercell:
+    :param supercell: pyscf object of simulation cell.
     :return:supercell k points which belong to the unit box primitive cell k point space
     """
     Sinv = np.linalg.inv(supercell.S).T

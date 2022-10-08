@@ -40,6 +40,23 @@ def make_loss(network, batch_network,
               clip_type='real',
               mode='for',
               partition_number=3):
+    """
+    generates loss function used for wavefunction trains.
+    :param network: unbatched logdet function of wavefunction
+    :param batch_network: batched logdet function of wavefunction
+    :param simulation_cell: pyscf object of simulation cell.
+    :param clip_local_energy: clip window width of local energy.
+    :param clip_type: specify the clip style. real mode clips the local energy in Cartesion style,
+    and complex mode in polar style
+    :param mode: specify the evaluation style of local energy.
+    'for' mode calculates the laplacian of each electron one by one, which is slow but save GPU memory
+    'hessian' mode calculates the laplacian in a highly parallized mode, which is fast but require GPU memory
+    'partition' mode calculate the laplacian in a moderate way.
+    :param partition_number: Only used if 'partition' mode is employed.
+    partition_number must be divisivle by (dim * number of electrons).
+    The smaller the faster, but requires more memory.
+    :return: the loss function
+    """
     el_fun = hamiltonian.local_energy_seperate(network,
                                                simulation_cell=simulation_cell,
                                                mode=mode,
@@ -50,7 +67,7 @@ def make_loss(network, batch_network,
     def total_energy(params, data):
         """
 
-        :param params:
+        :param params: a dictionary of parameters
         :param data: batch electron coord with shape [Batch, Nelec * Ndim]
         :return: energy expectation of corresponding walkers (only take real part) with shape [Batch]
         """
@@ -73,6 +90,12 @@ def make_loss(network, batch_network,
 
     @total_energy.defjvp
     def total_energy_jvp(primals, tangents):
+        """
+        customised jvp function of loss function.
+        :param primals: inputs of total_energy function (params, data)
+        :param tangents: tangent vectors corresponding to the primal (params, data)
+        :return: Jacobian-vector product of total energy.
+        """
         params, data = primals
         loss, aux_data = total_energy(params, data)
         diff = (aux_data.local_energy - loss)
@@ -122,9 +145,33 @@ def make_loss(network, batch_network,
 
 
 def make_training_step(mcmc_step, val_and_grad, opt_update):
+    """
+    generates the function used for wavefunction train.
+    :param mcmc_step: MCMC sample function
+    :param val_and_grad: value and grad of loss function
+    :param opt_update: optimizer state
+    :return: one iteration train function
+    """
 
     @functools.partial(constants.pmap, donate_argnums=(1, 2, 3, 4))
     def step(t, data, params, state, key, mcmc_width):
+        """
+        one iteration train of energy
+        :param t: current step of energy train.
+        :param data: batched electron walkes with shape [batch, ne * ndim]
+        :param params: a dictionary of parameters.
+        :param state: optimizer state.
+        :param key: PRNG key.
+        :param mcmc_width: mcmc move width
+        :return:
+        data: moved electron walkers
+        params: updated paramters
+        state: updated optimizer state
+        loss: value of loss function
+        aux_data: auxiliary value of loss function
+        pmove: accept rate of MCMC move
+        search_direction: calculated gradient.
+        """
         data, pmove = mcmc_step(params, data, key, mcmc_width)
 
         # Optimization step

@@ -16,11 +16,11 @@ def make_complex_polarization(simulation_cell: pyscf.pbc.gto.Cell,
                               direction: int = 0,
                               ndim=3):
     '''
-    the order parameter which is used to specify the hydrogen chain
-    :param simulation_cell:
-    :param direction:
+    generates the order parameter function of hydrogen chain.
+    :param simulation_cell: pyscf object of simulation cell.
+    :param direction: projection direction of electrons
     :param ndim:
-    :return:
+    :return:the order parameter
     '''
 
     rec_vec = simulation_cell.reciprocal_vectors()[direction]
@@ -45,6 +45,13 @@ def make_complex_polarization(simulation_cell: pyscf.pbc.gto.Cell,
 def make_structure_factor(simulation_cell: pyscf.pbc.gto.Cell,
                           nq=4,
                           ndim=3):
+    '''
+    generates the structure factor function which is used for finite size error reduction.
+    see PHYSICAL REVIEW B 94, 035126 (2016) for details.
+    :param simulation_cell: pyscf object of simulation cell.
+    :param nq: number of sampled crystal momentum in each direction.
+    :return:the structure factor.
+    '''
     mesh_grid = jnp.meshgrid(*[jnp.array(range(0, nq)) for _ in range(3)])
     point_list = jnp.stack([m.ravel() for m in mesh_grid], axis=0).T
     rec_vec = simulation_cell.reciprocal_vectors()
@@ -57,7 +64,7 @@ def make_structure_factor(simulation_cell: pyscf.pbc.gto.Cell,
         """
 
         :param data: electron walkers with shape [batch, ne * ndim]
-        :return: complex polarization with shape []
+        :return: structure factor with shape []
         """
         leading_shape = list(data.shape[:-1])
         data = data.reshape(leading_shape + [-1, ndim])

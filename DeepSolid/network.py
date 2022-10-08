@@ -183,6 +183,21 @@ def construct_input_features(
         x: jnp.ndarray,
         atoms: jnp.ndarray,
         ndim: int = 3) -> Tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray, jnp.ndarray]:
+    """Constructs inputs to Fermi Net from raw electron and atomic positions.
+      Args:
+        x: electron positions. Shape (nelectrons*ndim,).
+        atoms: atom positions. Shape (natoms, ndim).
+        ndim: dimension of system. Change only with caution.
+      Returns:
+        ae, ee, r_ae, r_ee tuple, where:
+          ae: atom-electron vector. Shape (nelectron, natom, 3).
+          ee: atom-electron vector. Shape (nelectron, nelectron, 3).
+          r_ae: atom-electron distance. Shape (nelectron, natom, 1).
+          r_ee: electron-electron distance. Shape (nelectron, nelectron, 1).
+        The diagonal terms in r_ee are masked out such that the gradients of these
+        terms are also zero.
+      """
+
     assert atoms.shape[1] == ndim
     ae = jnp.reshape(x, [-1, 1, ndim]) - atoms[None, ...]
     ee = jnp.reshape(x, [1, -1, ndim]) - jnp.reshape(x, [-1, 1, ndim])
@@ -197,10 +212,20 @@ def construct_input_features(
 
 
 def scaled_f(w):
+    """
+    see Phys. Rev. B 94, 035157
+    :param w: projection of position vectors on reciprocal vectors.
+    :return: function f in the ref.
+    """
     return jnp.abs(w) * (1 - jnp.abs(w / jnp.pi) ** 3 / 4.)
 
 
 def scaled_g(w):
+    """
+    see Phys. Rev. B 94, 035157
+    :param w: projection of position vectors on reciprocal vectors.
+    :return: function g in the ref.
+    """
     return w * (1 - 3. / 2. * jnp.abs(w / jnp.pi) + 1. / 2. * jnp.abs(w / jnp.pi) ** 2)
 
 
@@ -222,6 +247,13 @@ def sin_relative_distance(xea, a, b):
 
 
 def nu_distance(xea, a, b):
+    """
+    see Phys. Rev. B 94, 035157
+    :param xea: relative distance between electrons and atoms
+    :param a: lattice vectors of primitive cell divided by 2\pi.
+    :param b: reciprocal vectors of primitive cell.
+    :return: periodic generalized relative and absolute distance of xea.
+    """
     w = jnp.einsum('...ijk,lk->...ijl', xea, b)
     mod = (w + jnp.pi) // (2 * jnp.pi)
     w = (w - mod * 2 * jnp.pi)
@@ -238,6 +270,21 @@ def construct_periodic_input_features(
         atoms: jnp.ndarray,
         simulation_cell=None,
         ndim: int = 3) -> Tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray, jnp.ndarray]:
+    """Constructs a periodic generalized inputs to Fermi Net from raw electron and atomic positions.
+    see Phys. Rev. B 94, 035157
+      Args:
+        x: electron positions. Shape (nelectrons*ndim,).
+        atoms: atom positions. Shape (natoms, ndim).
+        ndim: dimension of system. Change only with caution.
+      Returns:
+        ae, ee, r_ae, r_ee tuple, where:
+          ae: atom-electron vector. Shape (nelectron, natom, 3).
+          ee: atom-electron vector. Shape (nelectron, nelectron, 3).
+          r_ae: atom-electron distance. Shape (nelectron, natom, 1).
+          r_ee: electron-electron distance. Shape (nelectron, nelectron, 1).
+        The diagonal terms in r_ee are masked out such that the gradients of these
+        terms are also zero.
+      """
     primitive_cell = simulation_cell.original_cell
     x = x.reshape(-1, ndim)
     n = x.shape[0]
@@ -267,6 +314,20 @@ def construct_periodic_input_features(
 
 def construct_symmetric_features(h_one: jnp.ndarray, h_two: jnp.ndarray,
                                  spins: Tuple[int, int]) -> jnp.ndarray:
+    """Combines intermediate features from rank-one and -two streams.
+    Args:
+      h_one: set of one-electron features. Shape: (nelectrons, n1), where n1 is
+        the output size of the previous layer.
+      h_two: set of two-electron features. Shape: (nelectrons, nelectrons, n2),
+        where n2 is the output size of the previous layer.
+      spins: number of spin-up and spin-down electrons.
+    Returns:
+      array containing the permutation-equivariant features: the input set of
+      one-electron features, the mean of the one-electron features over each
+      (occupied) spin channel, and the mean of the two-electron features over each
+      (occupied) spin channel. Output shape (nelectrons, 3*n1 + 2*n2) if there are
+      both spin-up and spin-down electrons and (nelectrons, 2*n1, n2) otherwise.
+    """
     # Split features into spin up and spin down electrons
     h_ones = jnp.split(h_one, spins[0:1], axis=0)
     h_twos = jnp.split(h_two, spins[0:1], axis=0)
@@ -414,6 +475,36 @@ def solid_fermi_net_orbitals(params, x,
                              spins=(None, None),
                              envelope_type=None,
                              full_det=False):
+    """Forward evaluation of the Solid Neural Network up to the orbitals.
+     Args:
+       params: A dictionary of parameters, containing fields:
+         `single`: a list of dictionaries with params 'w' and 'b', weights for the
+           one-electron stream of the network.
+         `double`: a list of dictionaries with params 'w' and 'b', weights for the
+           two-electron stream of the network.
+         `orbital`: a list of two weight matrices, for spin up and spin down (no
+           bias is necessary as it only adds a constant to each row, which does
+           not change the determinant).
+         `dets`: weight on the linear combination of determinants
+         `envelope`: a dictionary with fields `sigma` and `pi`, weights for the
+           multiplicative envelope.
+       x: The input data, a 3N dimensional vector.
+       simulation_cell: pyscf object of simulation cell.
+       klist: Tuple with occupied k points of the spin up and spin down electrons
+       in simulation cell.
+       spins: Tuple with number of spin up and spin down electrons.
+       envelope_type: a string that specifies kind of envelope. One of:
+         `isotropic`: envelope is the same in every direction
+       full_det: If true, the determinants are dense, rather than block-sparse.
+         True by default, false is still available for backward compatibility.
+         Thus, the output shape of the orbitals will be (ndet, nalpha+nbeta,
+         nalpha+nbeta) if True, and (ndet, nalpha, nalpha) and (ndet, nbeta, nbeta)
+         if False.
+     Returns:
+       One (two matrices if full_det is False) that exchange columns under the
+       exchange of inputs, and additional variables that may be needed by the
+       envelope, depending on the envelope type.
+     """
 
     ae_, ee_, r_ae, r_ee = construct_periodic_input_features(x, atoms,
                                                              simulation_cell=simulation_cell,
@@ -486,6 +577,19 @@ def eval_func(params, x,
               envelope_type='full',
               full_det=False,
               method_name='eval_slogdet'):
+    '''
+    generates the wavefunction of simulation cell.
+    :param params: parameter dict
+    :param x: The input data, a 3N dimensional vector.
+    :param simulation_cell: pyscf object of simulation cell.
+    :param klist: Tuple with occupied k points of the spin up and spin down electrons
+    in simulation cell.
+    :param atoms: array of atom positions in the primitive cell.
+    :param spins: Tuple with number of spin up and spin down electrons.
+    :param full_det: specify the mode of wavefunction, spin diagonalized or not.
+    :param method_name: specify the returned function of wavefunction
+    :return: required wavefunction
+    '''
 
     orbitals, to_env = solid_fermi_net_orbitals(params, x,
                                                 klist=klist,
@@ -522,7 +626,7 @@ def make_solid_fermi_net(
     method_name='eval_logdet',
 ):
     '''
-
+    generates the wavefunction of simulation cell.
     :param envelope_type: specify envelope
     :param bias_orbitals: whether to contain bias in the last layer of orbitals
     :param use_last_layer: wheter to use two-electron feature in the last layer

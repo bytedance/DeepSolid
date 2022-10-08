@@ -92,18 +92,18 @@ def importance_update(params,
                       i=0,
                       ):
     """
-
-    :param params:
+    Performs one importance sampling step using an all-electron move.
+    :param params: a dictionary of parameters.
     :param f: val_and_grad of batch_slogdet
-    :param x1:
-    :param key:
-    :param lp_1:
-    :param num_accepts:
-    :param latvec:
-    :param stddev:
-    :param atoms:
+    :param x1: Initial MCMC configurations. Shape (batch, nelectrons*ndim).
+    :param key: PRNG key.
+    :param lp_1: slogdet of wavefunction at original position x1.
+    :param num_accepts: number of accepted MCMC moves.
+    :param latvec: lattice vector of primitive cell.
+    :param stddev: MCMC move width.
+    :param atoms:atoms positions in the primitive cell
     :param i:
-    :return:
+    :return: moved electron position x_new, key, slogdet value of x_new, and number of accepted MCMC moves.
     """
     del i
     key, subkey = jax.random.split(key)
@@ -171,6 +171,7 @@ def mh_update(params,
       key: RNG state.
       lp_1: log probability of f evaluated at x1 given parameters params.
       num_accepts: Number of MH move proposals accepted.
+      latvec: lattice vector of primitive cell.
       stddev: width of Gaussian move proposal.
       atoms: If not None, atom positions. Shape (natoms, 3). If present, then the
         Metropolis-Hastings move proposals are drawn from a Gaussian distribution,
@@ -190,6 +191,7 @@ def mh_update(params,
     if atoms is None:  # symmetric proposal, same stddev everywhere
         x2 = x1 + stddev * jax.random.normal(subkey, shape=x1.shape)  # proposal
         x2, _ = distance.enforce_pbc(latvec, x2)
+        # reduce the electrons into the simulation cell.
         lp_2 = 2. * f(params, x2)  # log prob of proposal
         ratio = lp_2 - lp_1
     else:  # asymmetric proposal, stddev propto harmonic mean of nuclear distances
@@ -242,6 +244,7 @@ def mh_one_electron_update(params,
       key: RNG state.
       lp_1: log probability of f evaluated at x1 given parameters params.
       num_accepts: Number of MH move proposals accepted.
+      latvec: lattice vector of primitive cell.
       stddev: width of Gaussian move proposal.
       atoms: Ignored. Asymmetric move proposals are not implemented for
         single-electron moves.
@@ -295,15 +298,18 @@ def make_mcmc_step(batch_slog_network,
     """Creates the MCMC step function.
 
     Args:
-      batch_network: function, signature (params, x), which evaluates the log of
+      batch_slog_network: function, signature (params, x), which evaluates the log of
         the wavefunction (square root of the log probability distribution) at x
         given params. Inputs and outputs are batched.
       batch_per_device: Batch size per device.
+      latvec: lattice vector of primitive cell.
       steps: Number of MCMC moves to attempt in a single call to the MCMC step
         function.
       atoms: atom positions. If given, an asymmetric move proposal is used based
         on the harmonic mean of electron-atom distances for each electron.
         Otherwise the (conventional) normal distribution is used.
+      importance_sampling: if true, importance sampling is used for MCMC.
+      Otherwise, Metropolis method is used.
       one_electron_moves: If true, attempt to move one electron at a time.
         Otherwise, attempt one all-electron move per MCMC step.
 

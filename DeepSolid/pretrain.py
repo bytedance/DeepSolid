@@ -47,18 +47,34 @@ def make_pretrain_step(batch_orbitals,
                        full_det=False,
                        ):
     """
-
-    :param batch_orbitals:
-    :param batch_network:
-    :param latvec:
-    :param optimizer:
-    :return:
+    generate the low-level pretrain function
+    :param batch_orbitals: batched function return the orbital matrix of wavefunction
+    :param batch_network: batched function return the slogdet of wavefunction
+    :param latvec: lattice vector of primitive cell
+    :param optimizer: optimizer function
+    :return: the low-level pretrain function
     """
 
     def pretrain_step(data, target, params, state, key):
-        """One iteration of pretraining to match HF."""
+        """
+        One iteration of pretraining to match HF.
+        :param data: batched input data, a [batch, 3N] dimensional vector.
+        :param target: corresponding HF matrix values.
+        :param params: A dictionary of parameters.
+        :param state: optimizer state.
+        :param key: PRNG key.
+        :return: pretrained params, data, state, loss value, slogdet of neural network,
+        and number of accepted MCMC moves.
+        """
 
         def loss_fn(x, p, target):
+            """
+            loss function
+            :param x: batched input data, a [batch, 3N] dimensional vector.
+            :param p: A dictionary of parameters.
+            :param target: corresponding HF matrix values.
+            :return: value of loss function
+            """
             predict = batch_orbitals(p, x)
             if full_det:
                 batch_size = predict[0].shape[0]
@@ -102,6 +118,24 @@ def pretrain_hartree_fock(params,
                           iterations=1000,
                           learning_rate=5e-3,
                           ):
+    """
+    generates a function used for pretrain, and neural network is used as the target sample.
+    :param params: A dictionary of parameters.
+    :param data: The input data, a 3N dimensional vector.
+    :param batch_network: batched function return the slogdet of wavefunction
+    :param batch_orbitals: batched function return the orbital matrix of wavefunction
+    :param sharded_key: PRNG key
+    :param cell: pyscf object of simulation cell
+    :param scf_approx: hf.SCF object in DeepSolid. Used to eval the orbital value of Hartree Fock ansatz.
+    :param full_det: If true, the determinants are dense, rather than block-sparse.
+     True by default, false is still available for backward compatibility.
+     Thus, the output shape of the orbitals will be (ndet, nalpha+nbeta,
+     nalpha+nbeta) if True, and (ndet, nalpha, nalpha) and (ndet, nbeta, nbeta)
+     if False.
+    :param iterations: pretrain iterations
+    :param learning_rate: learning rate of pretrain
+    :return: pretrained parameters and electron positions.
+    """
 
     optimizer = optax.adam(learning_rate)
     opt_state_pt = constants.pmap(optimizer.init)(params)
@@ -146,6 +180,24 @@ def pretrain_hartree_fock_usingHF(params,
                                   nsteps=1,
                                   full_det=False,
                                   ):
+    """
+    generates a function used for pretrain, and HF ansatz is used as the target sample.
+    :param params: A dictionary of parameters.
+    :param data: The input data, a 3N dimensional vector.
+    :param batch_network: batched function return the slogdet of wavefunction
+    :param batch_orbitals: batched function return the orbital matrix of wavefunction
+    :param sharded_key: PRNG key
+    :param cell: pyscf object of simulation cell
+    :param scf_approx: hf.SCF object in DeepSolid. Used to eval the orbital value of Hartree Fock ansatz.
+    :param full_det: If true, the determinants are dense, rather than block-sparse.
+     True by default, false is still available for backward compatibility.
+     Thus, the output shape of the orbitals will be (ndet, nalpha+nbeta,
+     nalpha+nbeta) if True, and (ndet, nalpha, nalpha) and (ndet, nbeta, nbeta)
+     if False.
+    :param iterations: pretrain iterations
+    :param learning_rate: learning rate of pretrain
+    :return: pretrained parameters and electron positions.
+    """
 
     optimizer = optax.adam(learning_rate)
     opt_state_pt = constants.pmap(optimizer.init)(params)
@@ -155,10 +207,32 @@ def pretrain_hartree_fock_usingHF(params,
                            latvec,
                            optimizer,
                            ):
+        """
+        generate the low-level pretrain function
+        :param batch_orbitals: batched function return the orbital matrix of wavefunction
+        :param latvec: lattice vector of primitive cell
+        :param optimizer: optimizer function
+        :return: the low-level pretrain function
+        """
 
         def pretrain_step(data, target, params, state):
+            """
+            One iteration of pretraining to match HF.
+            :param data: batched input data, a [batch, 3N] dimensional vector.
+            :param target: corresponding HF matrix values.
+            :param params: A dictionary of parameters.
+            :param state: optimizer state.
+            :return: pretrained params, data, state, loss value.
+            """
 
             def loss_fn(x, p, target):
+                """
+                loss function
+                :param x: batched input data, a [batch, 3N] dimensional vector.
+                :param p: A dictionary of parameters.
+                :param target: corresponding HF matrix values.
+                :return: value of loss function
+                """
                 predict = batch_orbitals(p, x)
                 if full_det:
                     batch_size = predict[0].shape[0]

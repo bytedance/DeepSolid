@@ -24,8 +24,8 @@ from DeepSolid import network
 def local_kinetic_energy(f):
     '''
     holomorphic mode, which seems dangerous since many op don't support complex number now.
-    :param f:
-    :return:
+    :param f: function return the logdet of wavefunction
+    :return: local kinetic energy
     '''
     def _lapl_over_f(params, x):
         ne = x.shape[-1]
@@ -44,9 +44,9 @@ def local_kinetic_energy(f):
 
 def local_kinetic_energy_real_imag(f):
     '''
-    evaluate real and imaginary part of laplacian, which is slower than holomorphic mode but is much safer.
-    :param f:
-    :return:
+    evaluate real and imaginary part of laplacian.
+    :param f: function return the logdet of wavefunction
+    :return: local kinetic energy
     '''
     def _lapl_over_f(params, x):
         ne = x.shape[-1]
@@ -71,6 +71,11 @@ def local_kinetic_energy_real_imag(f):
 
 
 def local_kinetic_energy_real_imag_dim_batch(f):
+    '''
+    evaluate real and imaginary part of laplacian, in which vamp is used to accelerate.
+    :param f: function return the logdet of wavefunction
+    :return: local kinetic energy
+    '''
 
     def _lapl_over_f(params, x):
         ne = x.shape[-1]
@@ -99,8 +104,8 @@ def local_kinetic_energy_real_imag_dim_batch(f):
 def local_kinetic_energy_real_imag_hessian(f):
     '''
     Use jax.hessian to evaluate laplacian, which requires huge amount of memory.
-    :param f:
-    :return:
+    :param f: function return the logdet of wavefunction
+    :return: local kinetic energy
     '''
     def _lapl_over_f(params, x):
         ne = x.shape[-1]
@@ -122,9 +127,10 @@ def local_kinetic_energy_real_imag_hessian(f):
 def local_kinetic_energy_partition(f, partition_number=3):
   '''
   Try to parallelize the evaluation of laplacian
-  :param f:
-  :param partition_number:
-  :return:
+  :param f: bfunction return the logdet of wavefunction
+  :param partition_number: partition_number must be divisivle by (dim * number of electrons).
+  The smaller the faster, but requires more memory.
+  :return: local kinetic energy
   '''
   vjvp = jax.vmap(jax.jvp, in_axes=(None, None, 0))
 
@@ -155,6 +161,11 @@ def local_kinetic_energy_partition(f, partition_number=3):
 
 
 def local_ewald_energy(simulation_cell):
+    """
+    generate local energy of ewald part.
+    :param simulation_cell:
+    :return:
+    """
     ewald = ewaldsum.EwaldSum(simulation_cell)
     assert jnp.allclose(simulation_cell.energy_nuc(),
                         (ewald.ion_ion + ewald.ii_const),
@@ -181,6 +192,19 @@ def local_energy(f, simulation_cell):
 
 
 def local_energy_seperate(f, simulation_cell, mode='for', partition_number=3):
+    """
+    genetate the local energy function.
+    :param f: function return the logdet of wavefunction.
+    :param simulation_cell: pyscf object of simulation cell.
+    :param mode: specify the evaluation style of local energy.
+    'for' mode calculates the laplacian of each electron one by one, which is slow but save GPU memory
+    'hessian' mode calculates the laplacian in a highly parallized mode, which is fast but require GPU memory
+    'partition' mode calculate the laplacian in a moderate way.
+    :param partition_number: Only used if 'partition' mode is employed.
+    partition_number must be divisivle by (dim * number of electrons).
+    The smaller the faster, but requires more memory.
+    :return: the local energy function.
+    """
 
     if mode == 'for':
         ke_ri = local_kinetic_energy_real_imag(f)

@@ -82,6 +82,9 @@ class SCF:
         # self.init_scf()
 
     def init_scf(self):
+        """
+        initialization function to set up HF ansatz.
+        """
         self.klist = []
         for s, key in enumerate(self.coeff_key):
             mclist = []
@@ -101,6 +104,12 @@ class SCF:
                                               zip(self.kmf.kpts, self.k_split[self.coeff_key[s]])]))
 
     def eval_orbitals_pbc(self, coord, eval_str="GTOval_sph"):
+        """
+        eval the atomic orbital valus of HF.
+        :param coord: electron walkers with shape [batch, ne * ndim].
+        :param eval_str:
+        :return: atomic orbital valus of HF.
+        """
         prim_coord, wrap = distance.np_enforce_pbc(self.primitive_cell.a, coord.reshape([coord.shape[0], -1]))
         prim_coord = prim_coord.reshape([-1, 3])
         wrap = wrap.reshape([-1, 3])
@@ -113,12 +122,23 @@ class SCF:
         return ao
 
     def eval_mos_pbc(self, aos, s):
+        """
+        eval the molecular orbital values.
+        :param aos: atomic orbital values.
+        :param s: spin index.
+        :return: molecular orbital values.
+        """
         c = self.coeff_key[s]
         p = np.split(self.parameters[c], self.param_split[c], axis=-1)
         mo = [ao.dot(p[k]) for k, ao in enumerate(aos)]
         return np.concatenate(mo, axis=-1)
 
     def eval_orb_mat(self, coord):
+        """
+        eval the orbital matrix of HF.
+        :param coord: electron walkers with shape [batch, ne * ndim].
+        :return: orbital matrix of HF.
+        """
         batch, nelec, ndim = coord.shape
         aos = self.eval_orbitals_pbc(coord)
         aos_shape = (self.ns_tol, batch, nelec, -1)
@@ -133,6 +153,11 @@ class SCF:
         return mos
 
     def eval_slogdet(self, coord):
+        """
+        eval the slogdet of HF
+        :param coord: electron walkers with shape [batch, ne * ndim].
+        :return: slogdet of HF.
+        """
         mos = self.eval_orb_mat(coord)
         slogdets = [np.linalg.slogdet(mo) for mo in mos]
         phase, slogdet = list(map(lambda x, y: [x[0] * y[0], x[1] + y[1]], *zip(slogdets)))[0]
