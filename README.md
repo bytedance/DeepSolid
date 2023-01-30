@@ -1,7 +1,7 @@
 # DeepSolid
 
 An implementation of the algorithm given in 
-["Ab initio calculation of real solids via neural network ansatz"](https://arxiv.org/abs/2203.15472). 
+["Ab initio calculation of real solids via neural network ansatz"](https://rdcu.be/c4rNI). 
 A periodic neural network is proposed as wavefunction ansatz for solid quantum Monte Carlo and achieves 
 unprecedented accuracy compared with other state-of-the-art methods.
 This repository is developed upon [FermiNet](https://github.com/deepmind/ferminet/tree/jax) 
@@ -115,7 +115,11 @@ If you use this code in your work, please cite the associated paper.
 @article{li2022ab,
   title={Ab initio calculation of real solids via neural network ansatz},
   author={Li, Xiang and Li, Zhe and Chen, Ji},
-  journal={arXiv preprint arXiv:2203.15472},
-  year={2022}
+  journal={Nature Communications},
+  volume={13},
+  number={1},
+  pages={7895},
+  year={2022},
+  publisher={Nature Publishing Group UK London}
 }
 ```
