@@ -51,10 +51,9 @@ def get_config(input_str):
     
     # Define the lattice vectors of the primitive cell.
     # In this example it's a simple cubic.
-    cell.a = """
-    3.00, 0.00, 0.00
-    0.00, 3.00, 0.00
-    0.00, 0.00, 3.00"""
+    cell.a = np.array([[3.0, 0.0, 0.0],
+                       [0.0, 3.0, 0.0],
+                       [0.0, 0.0, 3.0]])
     
     # Define the unit used in cell definition, only support Bohr now. 
     cell.unit = "B"
