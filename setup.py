@@ -15,15 +15,15 @@ REQUIRED_PACKAGES = (
     "numpy",
     "ordered-set",
     "typing",
-    "chex",
+    "chex==0.1.5",
     "jax",
     "jaxlib",
     "pandas",
     "ml_collections",
     "pyscf",
     "tables",
-    'h5py==3.2.1',
-    'optax==0.0.9',
+    "h5py==3.2.1",
+    "optax==0.0.9",
 
 )
 
