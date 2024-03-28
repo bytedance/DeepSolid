@@ -135,6 +135,7 @@ def default() -> ml_collections.ConfigDict:
                 'hidden_dims':  ((256, 32), (256, 32), (256, 32)),
                 'determinants':  8,
                 'after_determinants':  1,
+                'distance_type': 'nu',
             },
             'twist': (0.0, 0.0, 0.0), # Difine the twist of wavefunction,
                                       # twists are given in terms of fractions of supercell reciprocal vectors
