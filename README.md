@@ -11,11 +11,15 @@ and [PyQMC](https://github.com/WagnerGroup/pyqmc).
 
 DeepSolid can be installed via the supplied setup.py file.
 ```shell
-pip3 install -e.
+# Install with CPU only
+pip3 install -e . -f https://storage.googleapis.com/jax-releases/jax_releases.html
+# or with GPU
+pip3 install -e . -f https://storage.googleapis.com/jax-releases/jax_cuda_releases.html
 ```
 
+Python 3.9 is recommended.
 If GPU is available, we recommend you to install jax and jaxlib with cuda 11.4+. 
-Our experiments were carried out with jax==0.2.26 and jaxlib==0.1.75. 
+Our experiments were carried out with `jax==0.2.26` and `jaxlib==0.1.75.` 
 
 ## Usage
 
