@@ -24,7 +24,7 @@ REQUIRED_PACKAGES = (
     "tables",
     "h5py==3.2.1",
     "optax==0.0.9",
-
+    "opt_einsum==3.3.0",
 )
 
 setup(
